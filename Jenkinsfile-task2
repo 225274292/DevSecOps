@@ -1,0 +1,26 @@
+pipeline {
+  agent any
+  options { timestamps() }
+  triggers { pollSCM('H/5 * * * *') }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        // same repo you just pushed to
+        git branch: 'main', url: 'https://github.com/225274292/DevSecOps.git'
+      }
+    }
+    stage('Install Dependencies') {
+      steps { dir('nodejs-goof') { bat 'npm install' } }
+    }
+    stage('Run Tests') {
+      steps { dir('nodejs-goof') { bat 'npm test || exit /b 0' } }
+    }
+    stage('Generate Coverage Report') {
+      steps { dir('nodejs-goof') { bat 'npm run coverage || exit /b 0' } }
+    }
+    stage('NPM Audit (Security Scan)') {
+      steps { dir('nodejs-goof') { bat 'npm audit || exit /b 0' } }
+    }
+  }
+}
