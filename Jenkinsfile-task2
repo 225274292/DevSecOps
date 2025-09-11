@@ -1,4 +1,5 @@
 pipeline {
+  tools { nodejs 'Node20-LTS' }
   agent any
   options { timestamps() }
   triggers { pollSCM('H/5 * * * *') }
