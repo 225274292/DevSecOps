@@ -1,5 +1,6 @@
 pipeline {
   agent any
+
   // Polling is allowed by the brief (webhook not required)
   triggers { pollSCM('H/5 * * * *') }
 
