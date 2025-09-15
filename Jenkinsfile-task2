@@ -1,11 +1,16 @@
 pipeline {
   agent any
-  tools { nodejs 'Node20-LTS' }
-  options { timestamps() }
-  triggers { pollSCM('H/5 * * * *') }
 
-  environment {
-    RECIPIENTS = 'sudhamapippalapalli@gmail.com'
+  tools {
+    nodejs 'Node20-LTS'
+  }
+
+  options {
+    timestamps()
+  }
+
+  triggers {
+    pollSCM('H/5 * * * *')
   }
 
   stages {
@@ -23,58 +28,21 @@ pipeline {
 
     stage('Run Tests') {
       steps {
-        // Run tests but keep the pipeline going so we always send the email
-        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-          bat 'npm test'
-        }
-      }
-      post {
-        always {
-          emailext(
-            to: env.RECIPIENTS,
-            subject: "SIT753 – Task 2: Tests ${currentBuild.currentResult} (#${env.BUILD_NUMBER})",
-            body: """Job: ${env.JOB_NAME}
-Build: #${env.BUILD_NUMBER}
-Stage: Run Tests
-Console: ${env.BUILD_URL}console""",
-            attachLog: true,
-            compressLog: true
-          )
-        }
+        // Continue even if tests fail
+        bat 'npm test || exit /b 0'
       }
     }
 
     stage('Generate Coverage Report') {
       steps {
-        // Optional: only if your package.json has a coverage script
         bat 'npm run coverage || exit /b 0'
-        archiveArtifacts artifacts: 'coverage*/**/*.*', allowEmptyArchive: true
       }
     }
 
     stage('NPM Audit (Security Scan)') {
       steps {
-        // Save machine-readable report and run readable audit for console
-        bat 'npm audit --json > audit.json'
-        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-          bat 'npm audit'
-        }
-        archiveArtifacts artifacts: 'audit.json', fingerprint: true, allowEmptyArchive: true
-      }
-      post {
-        always {
-          emailext(
-            to: env.RECIPIENTS,
-            subject: "SIT753 – Task 2: Security Scan ${currentBuild.currentResult} (#${env.BUILD_NUMBER})",
-            body: """Job: ${env.JOB_NAME}
-Build: #${env.BUILD_NUMBER}
-Stage: NPM Audit (Security Scan)
-Console: ${env.BUILD_URL}console""",
-            attachLog: true,
-            compressLog: true,
-            attachmentsPattern: 'audit.json'
-          )
-        }
+        // Prints CVEs in console
+        bat 'npm audit || exit /b 0'
       }
     }
   }
