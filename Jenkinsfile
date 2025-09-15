@@ -1,9 +1,6 @@
 pipeline {
   agent any
 
-  // Polling is allowed by the brief (webhook not required)
-  triggers { pollSCM('H/5 * * * *') }
-
   stages {
     stage('Build') { steps { echo 'Build — e.g., Maven/Gradle/npm' } }
     stage('Unit and Integration Tests') { steps { echo 'Unit & Integration Tests — e.g., JUnit/Jest/Mocha' } }
