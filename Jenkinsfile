@@ -4,12 +4,19 @@ pipeline {
   triggers { pollSCM('H/5 * * * *') }
 
   stages {
-    stage('Build') { steps { echo 'Build — e.g., Maven/Gradle/npm' } }
-    stage('Unit and Integration Tests') { steps { echo 'Unit & Integration Tests — e.g., JUnit/Jest/Mocha' } }
-    stage('Code Analysis') { steps { echo 'Static analysis — e.g., SonarQube/ESLint/Checkstyle' } }
-    stage('Security Scan') { steps { echo 'Security scan — e.g., OWASP Dependency-Check/Snyk/npm audit' } }
-    stage('Deploy to Staging') { steps { echo 'Deploy to staging — e.g., Docker/SSH/AWS EC2' } }
-    stage('Integration Tests on Staging') { steps { echo 'E2E/system tests — e.g., Selenium/Cypress' } }
-    stage('Deploy to Production') { steps { echo 'Deploy to production — e.g., Ansible/K8s/CodeDeploy' } }
+    stage('Build') { steps { echo 'Task: Compile and package the code'
+        echo 'Tool: Maven' } }
+    stage('Unit and Integration Tests') {echo 'Task: Run unit and integration tests'
+        echo 'Tool: JUnit' } }
+    stage('Code Analysis') { steps {  echo 'Task: Static code quality analysis'
+        echo 'Tool: SonarQube' } }
+    stage('Security Scan') { steps {  echo 'Task: Dependency vulnerability scan'
+        echo 'Tool: OWASP Dependency-Check' } }
+    stage('Deploy to Staging') { steps { echo 'Task: Deploy artifact to a staging server'
+        echo 'Tool: AWS CLI (EC2)' } }
+    stage('Integration Tests on Staging') { steps { echo 'Task: End-to-end/system tests on staging'
+        echo 'Tool: Selenium' } }
+    stage('Deploy to Production') { echo 'Task: Deploy artifact to production'
+        echo 'Tool: AWS CodeDeploy' } }
   }
 }
