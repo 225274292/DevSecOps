@@ -1,8 +1,12 @@
 pipeline {
-  tools { nodejs 'Node20-LTS' }
   agent any
+  tools { nodejs 'Node20-LTS' }
   options { timestamps() }
   triggers { pollSCM('H/5 * * * *') }
+
+  environment {
+    RECIPIENTS = 'sudhamapippalapalli@gmail.com'
+  }
 
   stages {
     stage('Checkout') {
@@ -10,17 +14,68 @@ pipeline {
         git branch: 'main', url: 'https://github.com/225274292/DevSecOps.git'
       }
     }
+
     stage('Install Dependencies') {
-      steps { bat 'npm install' }
+      steps {
+        bat 'npm install'
+      }
     }
+
     stage('Run Tests') {
-      steps { bat 'npm test || exit /b 0' }   // continue even if tests fail
+      steps {
+        // Run tests but keep the pipeline going so we always send the email
+        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+          bat 'npm test'
+        }
+      }
+      post {
+        always {
+          emailext(
+            to: env.RECIPIENTS,
+            subject: "SIT753 – Task 2: Tests ${currentBuild.currentResult} (#${env.BUILD_NUMBER})",
+            body: """Job: ${env.JOB_NAME}
+Build: #${env.BUILD_NUMBER}
+Stage: Run Tests
+Console: ${env.BUILD_URL}console""",
+            attachLog: true,
+            compressLog: true
+          )
+        }
+      }
     }
+
     stage('Generate Coverage Report') {
-      steps { bat 'npm run coverage || exit /b 0' }
+      steps {
+        // Optional: only if your package.json has a coverage script
+        bat 'npm run coverage || exit /b 0'
+        archiveArtifacts artifacts: 'coverage*/**/*.*', allowEmptyArchive: true
+      }
     }
+
     stage('NPM Audit (Security Scan)') {
-      steps { bat 'npm audit || exit /b 0' }  // prints CVEs in console
+      steps {
+        // Save machine-readable report and run readable audit for console
+        bat 'npm audit --json > audit.json'
+        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+          bat 'npm audit'
+        }
+        archiveArtifacts artifacts: 'audit.json', fingerprint: true, allowEmptyArchive: true
+      }
+      post {
+        always {
+          emailext(
+            to: env.RECIPIENTS,
+            subject: "SIT753 – Task 2: Security Scan ${currentBuild.currentResult} (#${env.BUILD_NUMBER})",
+            body: """Job: ${env.JOB_NAME}
+Build: #${env.BUILD_NUMBER}
+Stage: NPM Audit (Security Scan)
+Console: ${env.BUILD_URL}console""",
+            attachLog: true,
+            compressLog: true,
+            attachmentsPattern: 'audit.json'
+          )
+        }
+      }
     }
   }
 }
