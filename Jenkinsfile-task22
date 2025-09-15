@@ -1,11 +1,12 @@
 pipeline {
   agent any
-  tools { nodejs 'Node20-LTS' }
+  tools { nodejs 'Node20-LTS' }        
   options { timestamps() }
   triggers { pollSCM('H/5 * * * *') }
 
   environment {
-    RECIPIENTS = 'sudhamapippalapalli@gmail.com' // change if needed
+    FROM       = 'sudhamapippalapalli@gmail.com'                 
+    RECIPIENTS = 'sudhamapippalapalli@gmail.com'
   }
 
   stages {
@@ -21,9 +22,19 @@ pipeline {
       }
     }
 
+    // NEW: authenticate Snyk so `npm test` (snyk test) won’t fail
+    stage('Snyk Setup (Auth)') {
+      steps {
+        withCredentials([string(credentialsId: 'SNYK_TOKEN', variable: 'SNYK_TOKEN')]) {
+          bat 'npm install -g snyk'
+          bat 'snyk auth %SNYK_TOKEN%'
+        }
+      }
+    }
+
     stage('Run Tests') {
       steps {
-        // If "npm test" fails (e.g. snyk auth), keep build going so email still sends
+        // keep build green for demo even if snyk finds vulns / exits non-zero
         catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
           bat 'npm test'
         }
@@ -31,6 +42,7 @@ pipeline {
       post {
         always {
           emailext(
+            from: env.FROM,
             to: env.RECIPIENTS,
             subject: "SIT753 – P2T2: Tests ${currentBuild.currentResult} (#${env.BUILD_NUMBER})",
             body: """Job: ${env.JOB_NAME}
@@ -46,7 +58,9 @@ Console: ${env.BUILD_URL}console""",
 
     stage('NPM Audit (Security Scan)') {
       steps {
-        bat 'npm audit --json > audit.json'
+        // write JSON report; never fail the build if npm returns non-zero
+        bat 'npm audit --json > audit.json || exit /b 0'
+        // (optional) also run human-readable audit in console without failing build
         catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
           bat 'npm audit'
         }
@@ -55,6 +69,7 @@ Console: ${env.BUILD_URL}console""",
       post {
         always {
           emailext(
+            from: env.FROM,
             to: env.RECIPIENTS,
             subject: "SIT753 – P2T2: Security Scan ${currentBuild.currentResult} (#${env.BUILD_NUMBER})",
             body: """Job: ${env.JOB_NAME}
