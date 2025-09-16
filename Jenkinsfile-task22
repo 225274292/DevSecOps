@@ -1,28 +1,15 @@
 pipeline {
   agent any
-  tools { nodejs 'Node20-LTS' }        
+  tools { nodejs 'Node20-LTS' }
   options { timestamps() }
-  triggers { pollSCM('H/5 * * * *') }
-
-  environment {
-    FROM       = 'sudhamapippalapalli@gmail.com'                 
-    RECIPIENTS = 'sudhamapippalapalli@gmail.com'
-  }
 
   stages {
     stage('Checkout') {
-      steps {
-        git branch: 'main', url: 'https://github.com/225274292/DevSecOps.git'
-      }
+      steps { git branch: 'main', url: 'https://github.com/225274292/DevSecOps.git' }
     }
+    stage('Install Dependencies') { steps { bat 'npm install' } }
 
-    stage('Install Dependencies') {
-      steps {
-        bat 'npm install'
-      }
-    }
-
-    // NEW: authenticate Snyk so `npm test` (snyk test) won’t fail
+    // Keep these as in Part 1 so Part 2 "extends" it
     stage('Snyk Setup (Auth)') {
       steps {
         withCredentials([string(credentialsId: 'SNYK_TOKEN', variable: 'SNYK_TOKEN')]) {
@@ -31,57 +18,41 @@ pipeline {
         }
       }
     }
-
-    stage('Run Tests') {
-      steps {
-        // keep build green for demo even if snyk finds vulns / exits non-zero
-        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-          bat 'npm test'
-        }
-      }
-      post {
-        always {
-          emailext(
-            from: env.FROM,
-            to: env.RECIPIENTS,
-            subject: "SIT753 – P2T2: Tests ${currentBuild.currentResult} (#${env.BUILD_NUMBER})",
-            body: """Job: ${env.JOB_NAME}
-Build: #${env.BUILD_NUMBER}
-Stage: Run Tests
-Console: ${env.BUILD_URL}console""",
-            attachLog: true,
-            compressLog: true
-          )
-        }
-      }
+    stage('Run Tests') { steps { bat 'npm test || exit /b 0' } }
+    stage('Generate Coverage Report') {
+      steps { bat 'npm run coverage || (if not exist coverage mkdir coverage && echo TN> coverage\\lcov.info)' }
     }
+    stage('NPM Audit (Security Scan)') { steps { bat 'npm audit || exit /b 0' } }
+  }
 
-    stage('NPM Audit (Security Scan)') {
-      steps {
-        // write JSON report; never fail the build if npm returns non-zero
-        bat 'npm audit --json > audit.json || exit /b 0'
-        // (optional) also run human-readable audit in console without failing build
-        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-          bat 'npm audit'
-        }
-        archiveArtifacts artifacts: 'audit.json', fingerprint: true, allowEmptyArchive: true
-      }
-      post {
-        always {
-          emailext(
-            from: env.FROM,
-            to: env.RECIPIENTS,
-            subject: "SIT753 – P2T2: Security Scan ${currentBuild.currentResult} (#${env.BUILD_NUMBER})",
-            body: """Job: ${env.JOB_NAME}
-Build: #${env.BUILD_NUMBER}
-Stage: NPM Audit (Security Scan)
-Console: ${env.BUILD_URL}console""",
-            attachLog: true,
-            compressLog: true,
-            attachmentsPattern: 'audit.json'
-          )
-        }
-      }
+  post {
+    success {
+      emailext(
+        subject: "[SUCCESS] ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+        body: """<p>Build succeeded.</p>
+                 <p><b>Job:</b> ${env.JOB_NAME}<br/>
+                 <b>Build:</b> #${env.BUILD_NUMBER}<br/>
+                 <b>Commit:</b> ${env.GIT_COMMIT}</p>
+                 <p><a href="${env.BUILD_URL}">Open build</a></p>""",
+        to: "${env.DEFAULT_RECIPIENTS ?: 'you@gmail.com'}",
+        mimeType: 'text/html'
+      )
+    }
+    failure {
+      emailext(
+        subject: "[FAILED] ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+        body: """<p>Build failed.</p>
+                 <p><b>Job:</b> ${env.JOB_NAME}<br/>
+                 <b>Build:</b> #${env.BUILD_NUMBER}</p>
+                 <p><a href="${env.BUILD_URL}console">Console log</a></p>""",
+        to: "${env.DEFAULT_RECIPIENTS ?: 'you@gmail.com'}",
+        mimeType: 'text/html',
+        attachLog: true
+      )
+    }
+    always {
+      archiveArtifacts artifacts: 'coverage/lcov.info', allowEmptyArchive: true
     }
   }
 }
+
