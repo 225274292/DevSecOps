@@ -1,55 +1,48 @@
 pipeline {
   agent any
-  // If you use job-level "Poll SCM", keep this commented out.
-  // triggers { pollSCM('H/5 * * * *') }
+
+  tools {
+    nodejs 'Node20-LTS'
+  }
+
+  options {
+    timestamps()
+  }
+
+  triggers {
+    pollSCM('H/5 * * * *')
+  }
 
   stages {
-    stage('Build') {
+    stage('Checkout') {
       steps {
-        echo 'Task: Compile and package the code'
-        echo 'Tool: Maven'
+        git branch: 'main', url: 'https://github.com/225274292/DevSecOps.git'
       }
     }
 
-    stage('Unit and Integration Tests') {
+    stage('Install Dependencies') {
       steps {
-        echo 'Task: Run unit and integration tests'
-        echo 'Tool: JUnit'
+        bat 'npm install'
       }
     }
 
-    stage('Code Analysis') {
+    stage('Run Tests') {
       steps {
-        echo 'Task: Static code quality analysis'
-        echo 'Tool: SonarQube'
+        // Continue even if tests fail
+        bat 'npm test || exit /b 0'
       }
     }
 
-    stage('Security Scan') {
+    stage('Generate Coverage Report') {
       steps {
-        echo 'Task: Dependency vulnerability scan'
-        echo 'Tool: OWASP Dependency-Check'
+        bat 'npm run coverage || exit /b 0'
       }
     }
 
-    stage('Deploy to Staging') {
+    stage('NPM Audit (Security Scan)') {
       steps {
-        echo 'Task: Deploy artifact to a staging server'
-        echo 'Tool: AWS CLI (EC2)'
-      }
-    }
-
-    stage('Integration Tests on Staging') {
-      steps {
-        echo 'Task: End-to-end/system tests on staging'
-        echo 'Tool: Selenium'
-      }
-    }
-
-    stage('Deploy to Production') {
-      steps {
-        echo 'Task: Deploy artifact to production'
-        echo 'Tool: AWS CodeDeploy'
+        // Prints CVEs in console
+        bat 'npm audit || exit /b 0'
       }
     }
   }
