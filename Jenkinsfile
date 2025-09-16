@@ -1,14 +1,12 @@
-powershell -Command "@'
 pipeline {
   agent any
 
-  tools {
-    nodejs 'Node20-LTS'
-  }
+  tools { nodejs 'Node20-LTS' }
 
   options { timestamps() }
 
   triggers {
+    // Poll every 5 minutes (allowed per task sheet)
     pollSCM('H/5 * * * *')
   }
 
@@ -20,7 +18,9 @@ pipeline {
     }
 
     stage('Install Dependencies') {
-      steps { bat 'npm install' }
+      steps {
+        bat 'npm install'
+      }
     }
 
     stage('Snyk Setup (Auth)') {
@@ -34,14 +34,14 @@ pipeline {
 
     stage('Run Tests') {
       steps {
-        // nodejs-goof's tests use snyk test; don't fail the build
+        // nodejs-goof's tests call `snyk test`; don't fail build
         bat 'npm test || exit /b 0'
       }
     }
 
     stage('Generate Coverage Report') {
       steps {
-        // Try npm coverage; if missing, create a dummy lcov so the stage always passes
+        // If no coverage script, create a dummy lcov so stage always passes
         bat 'npm run coverage || (if not exist coverage mkdir coverage && echo TN> coverage\\lcov.info)'
       }
     }
@@ -53,4 +53,3 @@ pipeline {
     }
   }
 }
-'@ | Set-Content -Encoding UTF8 Jenkinsfile"
